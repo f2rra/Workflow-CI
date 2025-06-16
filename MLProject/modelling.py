@@ -42,6 +42,8 @@ def parse_args():
                         help='Number of cross-validation folds (default: 3)')
     parser.add_argument('--n_jobs', type=int, default=-1,
                         help='Number of parallel jobs (default: -1)')
+    parser.add_argument('--experiment_name', type=str, default='Weather_Prediction',
+                        help='MLflow experiment name (default: Weather_Prediction)')
     
     return parser.parse_args()
 
