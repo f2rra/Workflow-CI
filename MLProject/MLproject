@@ -1,4 +1,4 @@
-name: Weather_Prediction_Project
+name: latihan-cs-mlflow
 
 conda_env: conda.yaml
 
@@ -22,9 +22,3 @@ entry_points:
       min_samples_leaf: { type: int, default: 2 }
       experiment_name: { type: string, default: "Weather_Prediction" }
     command: "python modelling.py --test_size {test_size} --random_state {random_state} --n_estimators {n_estimators} --max_depth {max_depth} --min_samples_split {min_samples_split} --min_samples_leaf {min_samples_leaf} --experiment_name {experiment_name}"
-
-  predict:
-    parameters:
-      model_uri: { type: string }
-      input_data: { type: string }
-    command: "python predict.py --model_uri {model_uri} --input_data {input_data}"
