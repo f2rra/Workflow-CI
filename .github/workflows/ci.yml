@@ -40,7 +40,8 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           cd MLProject
-          mlflow run . --env-manager=local
+          mlflow run . --env-manager=local --experiment-name Weather_Prediction
+
       # Get latest run_id
       - name: Get latest MLflow run_id
         run: |

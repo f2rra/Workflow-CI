@@ -42,8 +42,6 @@ def parse_args():
                         help='Number of cross-validation folds (default: 3)')
     parser.add_argument('--n_jobs', type=int, default=-1,
                         help='Number of parallel jobs (default: -1)')
-    parser.add_argument('--experiment_name', type=str, default='Weather_Prediction',
-                        help='MLflow experiment name (default: Weather_Prediction)')
     
     return parser.parse_args()
 
@@ -59,9 +57,6 @@ def setup_mlflow():
     # Configure DagsHub
     os.environ['MLFLOW_TRACKING_USERNAME'] = username
     os.environ['MLFLOW_TRACKING_PASSWORD'] = password
-
-    # Set MLflow tracking URI (DagsHub)
-    mlflow.set_tracking_uri("https://dagshub.com/f2rra/Eksperimen_SML_Fathur.mlflow")
 
 def load_and_prepare_data():
     """Load and prepare data for training"""
