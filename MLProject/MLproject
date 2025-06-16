@@ -10,7 +10,7 @@ entry_points:
       cv_folds: { type: int, default: 3 }
       n_jobs: { type: int, default: -1 }
       experiment_name: { type: string, default: "Weather_Prediction" }
-    command: "python modelling.py --test_size {test_size} --random_state {random_state} --cv_folds {cv_folds} --n_jobs {n_jobs} --experiment_name {experiment_name}"
+    command: "python modelling.py"
 
   train:
     parameters:
