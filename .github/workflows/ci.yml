@@ -1,0 +1,203 @@
+name: MLflow Weather Model CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Manual trigger
+
+env:
+  MLFLOW_TRACKING_URI: https://dagshub.com/f2rra/Eksperimen_SML_Fathur.mlflow
+  PYTHON_VERSION: 3.9
+
+jobs:
+  train-model:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ env.PYTHON_VERSION }}
+        channels: conda-forge,defaults
+        
+    - name: Install MLflow and dependencies
+      shell: bash -l {0}
+      run: |
+        conda install -y mlflow pandas numpy scikit-learn matplotlib seaborn python-dotenv
+        pip install mlflow[extras]
+        
+    - name: Verify dataset
+      run: |
+        if [ ! -f "MLProject/weather_preprocessed.csv" ]; then
+          echo "Dataset not found! Please ensure weather_preprocessed.csv is in MLProject folder"
+          exit 1
+        fi
+        
+    - name: Run MLflow Project
+      shell: bash -l {0}
+      env:
+        MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+        MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+      run: |
+        cd MLProject
+        mlflow run . --experiment-name="Weather_Prediction_CI"
+        
+    - name: List generated artifacts
+      run: |
+        echo "Generated artifacts:"
+        find MLProject -name "*.txt" -o -name "*.csv" -o -name "*.png" | head -20
+        
+    - name: Upload training artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: training-artifacts-${{ github.run_number }}
+        path: |
+          MLProject/classification_report.txt
+          MLProject/feature_importance.csv
+          MLProject/feature_importance.png
+          MLProject/best_parameters.txt
+        retention-days: 30
+        
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        
+    - name: Get latest model info
+      id: model_info
+      shell: bash -l {0}
+      env:
+        MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+        MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+      run: |
+        cd MLProject
+        # Get the latest run ID for the experiment
+        RUN_ID=$(python -c "
+import mlflow
+mlflow.set_tracking_uri('${{ env.MLFLOW_TRACKING_URI }}')
+experiment = mlflow.get_experiment_by_name('Weather_Prediction_CI')
+if experiment:
+    runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id], max_results=1)
+    if not runs.empty:
+        print(runs.iloc[0]['run_id'])
+    else:
+        print('no-runs')
+else:
+    print('no-experiment')
+        ")
+        echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+        echo "Latest run ID: $RUN_ID"
+        
+    - name: Build Docker image with MLflow
+      if: steps.model_info.outputs.run_id != 'no-runs' && steps.model_info.outputs.run_id != 'no-experiment'
+      shell: bash -l {0}
+      env:
+        MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+        MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+      run: |
+        cd MLProject
+        RUN_ID="${{ steps.model_info.outputs.run_id }}"
+        IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/weather-prediction"
+        TAG="run-${RUN_ID:0:8}"
+        
+        # Build Docker image using MLflow
+        mlflow models build-docker \
+          --model-uri "runs:/$RUN_ID/weather_model" \
+          --name "$IMAGE_NAME:$TAG" \
+          --enable-mlserver
+          
+        # Also create latest tag
+        docker tag "$IMAGE_NAME:$TAG" "$IMAGE_NAME:latest"
+        
+        # Push both tags
+        docker push "$IMAGE_NAME:$TAG"
+        docker push "$IMAGE_NAME:latest"
+        
+        echo "Docker image pushed: $IMAGE_NAME:$TAG"
+        echo "Docker image pushed: $IMAGE_NAME:latest"
+        
+    - name: Create deployment info
+      run: |
+        cat > deployment_info.txt << EOF
+        Deployment Information
+        =====================
+        
+        Timestamp: $(date)
+        Commit SHA: ${{ github.sha }}
+        Branch: ${{ github.ref_name }}
+        Run Number: ${{ github.run_number }}
+        
+        Docker Images:
+        - ${{ secrets.DOCKERHUB_USERNAME }}/weather-prediction:run-${{ steps.model_info.outputs.run_id }}
+        - ${{ secrets.DOCKERHUB_USERNAME }}/weather-prediction:latest
+        
+        MLflow Run ID: ${{ steps.model_info.outputs.run_id }}
+        MLflow UI: ${{ env.MLFLOW_TRACKING_URI }}
+        
+        Model API Usage:
+        docker run -p 5000:8080 ${{ secrets.DOCKERHUB_USERNAME }}/weather-prediction:latest
+        EOF
+        
+    - name: Upload deployment info
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-info-${{ github.run_number }}
+        path: deployment_info.txt
+        retention-days: 90
+        
+    - name: Commit artifacts back to repo
+      if: github.ref == 'refs/heads/main'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Create artifacts directory if it doesn't exist
+        mkdir -p artifacts/run-${{ github.run_number }}
+        
+        # Copy artifacts to repo
+        cp deployment_info.txt artifacts/run-${{ github.run_number }}/
+        if [ -f "MLProject/classification_report.txt" ]; then
+          cp MLProject/classification_report.txt artifacts/run-${{ github.run_number }}/
+        fi
+        if [ -f "MLProject/feature_importance.csv" ]; then
+          cp MLProject/feature_importance.csv artifacts/run-${{ github.run_number }}/
+        fi
+        
+        # Commit if there are changes
+        git add artifacts/
+        if ! git diff --staged --quiet; then
+          git commit -m "Add training artifacts from run ${{ github.run_number }}"
+          git push
+        fi
+        
+  notification:
+    needs: train-model
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify completion
+      run: |
+        if [ "${{ needs.train-model.result }}" == "success" ]; then
+          echo "✅ Model training and deployment completed successfully!"
+          echo "🐳 Docker image available at: https://hub.docker.com/r/${{ secrets.DOCKERHUB_USERNAME }}/weather-prediction"
+          echo "📊 MLflow UI: ${{ env.MLFLOW_TRACKING_URI }}"
+        else
+          echo "❌ Model training failed!"
+          exit 1
+        fi

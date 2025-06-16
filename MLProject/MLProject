@@ -1,7 +1,30 @@
 name: Weather_Prediction_Project
+
 conda_env: conda.yaml
+
 entry_points:
   main:
     parameters:
-      data_path: { type: str, default: "weather_preprocessed.csv" }
-    command: "python modelling.py {data_path}"
+      test_size: { type: float, default: 0.2 }
+      random_state: { type: int, default: 42 }
+      cv_folds: { type: int, default: 3 }
+      n_jobs: { type: int, default: -1 }
+      experiment_name: { type: string, default: "Weather_Prediction" }
+    command: "python modelling.py --test_size {test_size} --random_state {random_state} --cv_folds {cv_folds} --n_jobs {n_jobs} --experiment_name {experiment_name}"
+
+  train:
+    parameters:
+      test_size: { type: float, default: 0.2 }
+      random_state: { type: int, default: 42 }
+      n_estimators: { type: int, default: 100 }
+      max_depth: { type: int, default: 20 }
+      min_samples_split: { type: int, default: 5 }
+      min_samples_leaf: { type: int, default: 2 }
+      experiment_name: { type: string, default: "Weather_Prediction" }
+    command: "python modelling.py --test_size {test_size} --random_state {random_state} --n_estimators {n_estimators} --max_depth {max_depth} --min_samples_split {min_samples_split} --min_samples_leaf {min_samples_leaf} --experiment_name {experiment_name}"
+
+  predict:
+    parameters:
+      model_uri: { type: string }
+      input_data: { type: string }
+    command: "python predict.py --model_uri {model_uri} --input_data {input_data}"
