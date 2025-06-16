@@ -1,0 +1,7 @@
+name: Weather_Prediction_Project
+conda_env: conda.yaml
+entry_points:
+  main:
+    parameters:
+      data_path: { type: str, default: "weather_preprocessed.csv" }
+    command: "python modelling.py {data_path}"
