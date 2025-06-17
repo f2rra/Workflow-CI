@@ -14,7 +14,7 @@ jobs:
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Setup Python 3.12.10
       - name: Set up Python 3.12.10
@@ -30,17 +30,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r MLProject/requirements.txt
+          pip install mlflow==2.22.0 dagshub==0.5.10
 
       # Run as a mlflow project
       - name: Run mlflow project
-        env:
-          MLFLOW_TRACKING_URI: https://dagshub.com/f2rra/Eksperimen_SML_Fathur.mlflow
-          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
-          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          cd MLProject
-          mlflow run . --env-manager=local --experiment-name Weather_Prediction
+          mlflow run MLProject --env-manager=local
 
       # Get latest run_id
       - name: Get latest MLflow run_id
