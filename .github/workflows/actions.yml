@@ -47,7 +47,7 @@ jobs:
       # Build Docker Model
       - name: Build Docker Model
         run: |
-          mlflow models build-docker --model-uri "runs:/$RUN_ID/model" --name "cc"
+          mlflow models build-docker --model-uri "runs:/$RUN_ID/model" --name "weather_model"
 
       # Login to Docker Hub
       - name: Log in to Docker Hub
@@ -59,9 +59,9 @@ jobs:
       # Tag the Docker image
       - name: Tag Docker Image
         run: |
-          docker tag cc ${{ secrets.DOCKERHUB_USERNAME }}/cc:latest
+          docker tag weather_model ${{ secrets.DOCKERHUB_USERNAME }}/weather_model:latest
 
       # Push Docker image to Docker Hub
       - name: Push Docker Image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cc:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/weather_model:latest
